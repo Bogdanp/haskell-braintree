@@ -11,20 +11,27 @@ module Web.Braintree.Client.Conduit
 import Control.Exception (try)
 import Control.Monad (when)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.Trans.Resource
+import Control.Monad.Trans.Resource (runResourceT)
 import Data.ByteString.Char8 (pack)
-import qualified Data.CaseInsensitive as CI
-import Data.Conduit
-import qualified Data.Conduit.List as CL
+import Data.Conduit ((.|))
 import Data.Monoid ((<>))
-import Network.HTTP.Client hiding (setRequestIgnoreStatus)
+import Network.HTTP.Client
+       (Manager, RequestBody(..), defaultRequest, responseStatus)
 import Network.HTTP.Simple
-import qualified Network.HTTP.Types as NHT
-import Text.XML (sinkDoc)
-import Text.XML.Stream.Parse
+       (addRequestHeader, httpSink, setRequestBasicAuth, setRequestBody,
+        setRequestHost, setRequestIgnoreStatus, setRequestManager,
+        setRequestMethod, setRequestPath, setRequestPort, setRequestSecure)
+import Text.XML.Stream.Parse (XmlException(..), parseBytes, def)
 import Web.Braintree.Client
+       (BraintreeConfig(..), BraintreeError(..), BraintreeErrorKind(..),
+        BraintreeRequest(..), BraintreeReturn, Method(..),
+        errorCodeFromStatus, getClientId, getClientSecret, isErrorCode,
+        requestHost, requestPath, toXML)
+import Web.Braintree.Types (FromXML, parseXML)
+import qualified Data.CaseInsensitive as CI
+import qualified Data.Conduit.List as CL
+import qualified Network.HTTP.Types as NHT
 import qualified Web.Braintree.Client as C
-import Web.Braintree.Types
 
 debug :: Bool
 debug = False
@@ -60,10 +67,10 @@ braintree manager conf@BraintreeConfig {..} req@BraintreeRequest {..} = do
       httpSink request $ \response -> do
         when debug $ liftIO $ print response
         let status = NHT.statusCode $ responseStatus response
-        if not $ isErrorCode status
-          then Right <$> (parseBytes def $= parseXML)
+        if not . isErrorCode $ status
+          then Right <$> (parseBytes def .| parseXML)
           else (Left . BraintreeError (APIError . errorCodeFromStatus $ status)) <$>
-               (CL.fold (<>) "")
+               (CL.foldMap id)
     addRequestBody =
       if method == GET || method == DELETE
         then id

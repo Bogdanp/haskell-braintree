@@ -71,11 +71,11 @@ requestHeaders conf@BraintreeConfig {..} =
 requestHost :: BraintreeConfig -> ByteString
 requestHost BraintreeConfig {..} = environmentRoot environment
 
+environmentRoot :: Environment -> ByteString
+environmentRoot Sandbox = "api.sandbox.braintreegateway.com"
+environmentRoot Production = "api.braintreegateway.com"
+
 -- | Retrieve the API request path for a config and request.
 requestPath :: BraintreeConfig -> BraintreeRequest a -> ByteString
 requestPath BraintreeConfig {..} BraintreeRequest {..} =
   "/merchants/" <> getMerchantId merchantId <> "/" <> endpoint
-
-environmentRoot :: Environment -> ByteString
-environmentRoot Sandbox = "api.sandbox.braintreegateway.com"
-environmentRoot Production = "api.braintreegateway.com"
